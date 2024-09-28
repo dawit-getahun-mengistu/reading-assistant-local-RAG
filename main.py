@@ -11,13 +11,16 @@ from fastapi import FastAPI, File, Request, UploadFile
 import uvicorn
 import os
 
+from get_embedding_function import get_embedding_function
+from populate_database import load_single_pdf, load_documents, split_documents, add_to_chroma, calculate_chunk_ids, remove_document_from_chroma
+
 
 app = FastAPI()
-chached_llm = Ollama(model='gemma:2b')
+chached_llm = Ollama(model='mistral')
 UPLOAD_DIR = 'data/'
 CHROMA_DB = 'chroma'
 
-embedding = FastEmbedEmbeddings()
+embedding = get_embedding_function()
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1024, chunk_overlap=80, length_function=len, is_separator_regex=False
@@ -67,7 +70,7 @@ async def askPDFPost(request: Request):
         search_type='similarity_score_threshold',
         search_kwargs={
             "k": 20,
-            "score_threshold": 0.1
+            "score_threshold": 0.5
         }
     )
 
@@ -91,16 +94,19 @@ async def uploadFile(file: UploadFile = File(...)):
 
     print(f"filename: {file_name}")
 
-    loader = PDFPlumberLoader(save_path)
-    docs = loader.load_and_split()
-    print(f"docs len={len(docs)}")
+    # loader = PDFPlumberLoader(save_path)
+    # docs = loader.load_and_split()
+    # print(f"docs len={len(docs)}")
 
-    chunks = text_splitter.split_documents(docs)
-    print(f"chunks len={len(chunks)}")
+    # chunks = text_splitter.split_documents(docs)
+    # print(f"chunks len={len(chunks)}")
 
-    vector_store = Chroma.from_documents(
-        documents=chunks, embedding=embedding, persist_directory=CHROMA_DB)
+    # vector_store = Chroma.from_documents(
+    #     documents=chunks, embedding=embedding, persist_directory=CHROMA_DB)
     # vector_store.persist()
+    docs = load_single_pdf(save_path)
+    chunks = split_documents(docs)
+    add_to_chroma(chunks)
 
     response = {
         "status": "successfully uploaded",

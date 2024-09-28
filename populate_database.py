@@ -1,7 +1,7 @@
 import argparse
 import os
 import shutil
-from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
+from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
 from get_embedding_function import get_embedding_function
@@ -11,7 +11,7 @@ from langchain_chroma import Chroma
 
 CHROMA_PATH = "chroma"
 DATA_PATH = "data"
-# DATA_PATH = 'data/books'
+DATA_PATH = 'data/books'
 DATA_PATH = 'sm_data'
 
 
@@ -34,6 +34,16 @@ def main():
 
 def load_documents():
     document_loader = PyPDFDirectoryLoader(DATA_PATH)
+    return document_loader.load()
+
+
+def load_single_pdf(file_path: str):
+    """
+    Load a single PDF file.
+    :param file_path: The path to the PDF file.
+    :return: A list of documents loaded from the PDF.
+    """
+    document_loader = PyPDFLoader(file_path)
     return document_loader.load()
 
 
@@ -110,5 +120,39 @@ def clear_database():
         shutil.rmtree(CHROMA_PATH)
 
 
+def remove_document_from_chroma(document_name: str):
+    """
+    Remove all chunks from the Chroma vector store that belong to a specific document.
+
+    :param document_name: The name of the document to remove (e.g., 'example.pdf').
+    """
+    # Load the existing Chroma database.
+    db = Chroma(
+        persist_directory=CHROMA_PATH, embedding_function=get_embedding_function()
+    )
+
+    # Fetch all items in the database.
+    # Get metadata to filter based on source
+    existing_items = db.get(include=["metadatas"])
+
+    # Find chunks that belong to the specified document.
+    ids_to_remove = []
+    for i, metadata in enumerate(existing_items["metadatas"]):
+        if document_name in metadata.get("source"):
+            # Add the corresponding chunk ID to the removal list.
+            ids_to_remove.append(existing_items["ids"][i])
+
+    if ids_to_remove:
+        print(
+            f"🗑 Removing {len(ids_to_remove)} chunks from document: {document_name}")
+        # Remove these chunks from the Chroma vector store.
+        db.delete(ids=ids_to_remove)
+        print("✅ Document removed successfully.")
+    else:
+        print(f"⚠️ No chunks found for document: {document_name}")
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    remove_document_from_chroma(
+        '1704.03155v2.pdf')
